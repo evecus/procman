@@ -148,6 +148,20 @@ func (s *Server) handleService(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, 200, map[string]string{"status": "restarted"})
 
+	case action == "autostart" && r.Method == http.MethodPost:
+		state, err := s.mgr.Get(name)
+		if err != nil {
+			writeError(w, 404, err.Error())
+			return
+		}
+		cfg := state.Config
+		cfg.AutoStart = !cfg.AutoStart
+		if err := s.mgr.UpdateService(cfg); err != nil {
+			writeError(w, 400, err.Error())
+			return
+		}
+		writeJSON(w, 200, map[string]any{"status": "ok", "auto_start": cfg.AutoStart})
+
 	case action == "" && r.Method == http.MethodDelete:
 		if err := s.mgr.RemoveService(name); err != nil {
 			writeError(w, 400, err.Error())
