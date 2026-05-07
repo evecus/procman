@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProcMan — 进程管理器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #0a0c0f;
+    --bg1:     #10141a;
+    --bg2:     #161c25;
+    --bg3:     #1e2633;
+    --border:  #2a3545;
+    --text:    #c8d8e8;
+    --muted:   #5a7080;
+    --accent:  #00d4ff;
+    --green:   #00e676;
+    --red:     #ff3d57;
+    --yellow:  #ffd740;
+    --orange:  #ff8c42;
+    --purple:  #b388ff;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* grid noise overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── HEADER ──────────────────────────────────────────── */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,12,15,.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 24px; height: 56px;
+  }
+
+  .logo {
+    font-family: var(--sans);
+    font-size: 18px; font-weight: 800;
+    color: var(--accent);
+    letter-spacing: -.5px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .logo-icon { font-size: 20px; }
+
+  .header-stats {
+    margin-left: auto;
+    display: flex; gap: 20px; align-items: center;
+  }
+  .stat-pill {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--muted);
+  }
+  .stat-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    animation: pulse-dot 2s infinite;
+  }
+  .stat-dot.green { background: var(--green); }
+  .stat-dot.red   { background: var(--red);   }
+  .stat-dot.yellow{ background: var(--yellow);}
+
+  @keyframes pulse-dot {
+    0%,100% { opacity: 1; }
+    50%      { opacity: .4; }
+  }
+
+  .ws-indicator {
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    border: 1px solid;
+  }
+  .ws-indicator.connected    { color: var(--green);  border-color: var(--green);  }
+  .ws-indicator.disconnected { color: var(--red);    border-color: var(--red);    }
+
+  /* ── LAYOUT ──────────────────────────────────────────── */
+  .layout {
+    display: flex; height: calc(100vh - 56px);
+    position: relative; z-index: 1;
+  }
+
+  /* sidebar */
+  .sidebar {
+    width: 280px; flex-shrink: 0;
+    background: var(--bg1);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .sidebar-title {
+    font-size: 10px; text-transform: uppercase;
+    letter-spacing: 2px; color: var(--muted);
+    font-family: var(--sans);
+  }
+
+  .btn-add {
+    background: var(--accent);
+    color: var(--bg);
+    border: none; cursor: pointer;
+    font-family: var(--mono);
+    font-size: 11px; font-weight: 600;
+    padding: 5px 10px; border-radius: 4px;
+    transition: all .15s;
+  }
+  .btn-add:hover { background: #33ddff; transform: translateY(-1px); }
+
+  .service-list {
+    flex: 1; overflow-y: auto;
+    padding: 8px;
+  }
+  .service-list::-webkit-scrollbar { width: 4px; }
+  .service-list::-webkit-scrollbar-track { background: transparent; }
+  .service-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .svc-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 6px;
+    cursor: pointer; transition: all .15s;
+    border: 1px solid transparent;
+    margin-bottom: 2px;
+  }
+  .svc-item:hover  { background: var(--bg2); border-color: var(--border); }
+  .svc-item.active { background: var(--bg3); border-color: var(--accent); }
+
+  .svc-status-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  }
+  .s-running  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .s-stopped  { background: var(--muted); }
+  .s-starting,.s-stopping { background: var(--yellow); animation: pulse-dot 1s infinite; }
+  .s-failed   { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+
+  .svc-info { flex: 1; min-width: 0; }
+  .svc-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .svc-cmd  { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .svc-badge {
+    font-size: 9px; text-transform: uppercase; letter-spacing: .5px;
+    padding: 2px 5px; border-radius: 3px; flex-shrink: 0;
+  }
+  .badge-running  { background: rgba(0,230,118,.15); color: var(--green); }
+  .badge-stopped  { background: rgba(90,112,128,.15); color: var(--muted); }
+  .badge-starting,
+  .badge-stopping { background: rgba(255,215,64,.15);  color: var(--yellow); }
+  .badge-failed   { background: rgba(255,61,87,.15);   color: var(--red); }
+
+  /* main */
+  .main {
+    flex: 1; display: flex; flex-direction: column;
+    overflow: hidden; background: var(--bg);
+  }
+
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    color: var(--muted); gap: 12px;
+  }
+  .empty-icon { font-size: 48px; opacity: .3; }
+  .empty-text { font-size: 13px; }
+
+  /* detail pane */
+  .detail { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .detail-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px;
+    background: var(--bg1);
+  }
+  .detail-name {
+    font-family: var(--sans);
+    font-size: 22px; font-weight: 700;
+    letter-spacing: -.5px;
+  }
+  .detail-desc { font-size: 12px; color: var(--muted); flex: 1; }
+
+  .action-bar { display: flex; gap: 8px; align-items: center; }
+
+  .btn {
+    border: 1px solid; cursor: pointer;
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    padding: 6px 14px; border-radius: 4px;
+    transition: all .15s; background: transparent;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+  .btn-start   { color: var(--green);  border-color: var(--green); }
+  .btn-start:hover:not(:disabled)   { background: rgba(0,230,118,.1); }
+  .btn-stop    { color: var(--red);    border-color: var(--red); }
+  .btn-stop:hover:not(:disabled)    { background: rgba(255,61,87,.1); }
+  .btn-restart { color: var(--yellow); border-color: var(--yellow); }
+  .btn-restart:hover:not(:disabled) { background: rgba(255,215,64,.1); }
+  .btn-edit    { color: var(--accent); border-color: var(--accent); }
+  .btn-edit:hover:not(:disabled)    { background: rgba(0,212,255,.1); }
+  .btn-delete  { color: var(--muted);  border-color: var(--muted); }
+  .btn-delete:hover:not(:disabled)  { color: var(--red); border-color: var(--red); background: rgba(255,61,87,.1); }
+
+  /* detail tabs */
+  .tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg1);
+    padding: 0 24px;
+  }
+  .tab {
+    font-size: 11px; font-weight: 500;
+    padding: 10px 16px;
+    cursor: pointer; color: var(--muted);
+    border-bottom: 2px solid transparent;
+    transition: all .15s; text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .tab:hover  { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* info tab */
+  .tab-content { flex: 1; overflow-y: auto; padding: 24px; }
+  .tab-content::-webkit-scrollbar { width: 4px; }
+  .tab-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .info-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px; margin-bottom: 24px;
+  }
+  .info-card {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px;
+  }
+  .info-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .info-value { font-size: 14px; word-break: break-all; }
+  .info-value.mono { font-family: var(--mono); font-size: 12px; }
+
+  .env-table { width: 100%; border-collapse: collapse; }
+  .env-table th, .env-table td {
+    text-align: left; padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .env-table th { color: var(--muted); font-weight: 400; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* log tab */
+  .log-container {
+    background: #060810;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    height: 100%;
+    overflow-y: auto;
+    padding: 12px;
+    font-size: 11px;
+    line-height: 1.7;
+    display: flex; flex-direction: column;
+  }
+  .log-container::-webkit-scrollbar { width: 4px; }
+  .log-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .log-line { display: flex; gap: 12px; }
+  .log-time { color: var(--muted); flex-shrink: 0; user-select: none; }
+  .log-text  { color: var(--text); flex: 1; word-break: break-all; }
+  .log-text.err { color: var(--red); }
+  .log-text.sys { color: var(--accent); }
+
+  /* ── MODAL ───────────────────────────────────────────── */
+  .modal-bg {
+    display: none; position: fixed; inset: 0; z-index: 500;
+    background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+  }
+  .modal-bg.open { display: flex; }
+
+  .modal {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 28px;
+    width: 560px; max-width: 95vw;
+    max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 24px 80px rgba(0,0,0,.6);
+    animation: modal-in .2s ease;
+  }
+  @keyframes modal-in {
+    from { opacity: 0; transform: translateY(16px) scale(.97); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .modal-title {
+    font-family: var(--sans); font-size: 18px; font-weight: 700;
+    margin-bottom: 24px; color: var(--accent);
+  }
+
+  .form-group { margin-bottom: 16px; }
+  .form-label {
+    display: block; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--muted); margin-bottom: 6px;
+  }
+  .form-input, .form-textarea, .form-select {
+    width: 100%; background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+    padding: 8px 12px; border-radius: 6px;
+    outline: none; transition: border-color .15s;
+  }
+  .form-input:focus, .form-textarea:focus {
+    border-color: var(--accent);
+  }
+  .form-textarea { resize: vertical; min-height: 80px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-check { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; }
+  .form-check input { accent-color: var(--accent); }
+
+  .env-editor { display: flex; flex-direction: column; gap: 8px; }
+  .env-row { display: flex; gap: 8px; align-items: center; }
+  .env-row input { flex: 1; }
+  .btn-icon {
+    width: 28px; height: 28px;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: transparent; color: var(--muted);
+    cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+  }
+  .btn-icon:hover { color: var(--red); border-color: var(--red); }
+  .btn-icon-add { color: var(--green) !important; }
+  .btn-icon-add:hover { border-color: var(--green) !important; }
+
+  .modal-actions {
+    display: flex; gap: 10px; justify-content: flex-end;
+    margin-top: 24px; padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+  .btn-cancel { color: var(--muted); border-color: var(--border); }
+  .btn-cancel:hover { color: var(--text); border-color: var(--text); }
+  .btn-save { color: var(--accent); border-color: var(--accent); }
+  .btn-save:hover { background: rgba(0,212,255,.1); }
+
+  /* toast */
+  .toast-container {
+    position: fixed; bottom: 24px; right: 24px; z-index: 1000;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .toast {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-left: 3px solid;
+    padding: 10px 16px; border-radius: 6px;
+    font-size: 12px; max-width: 320px;
+    animation: toast-in .2s ease;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  }
+  .toast.success { border-left-color: var(--green); }
+  .toast.error   { border-left-color: var(--red);   }
+  .toast.info    { border-left-color: var(--accent); }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateX(20px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* pid badge */
+  .pid-tag {
+    font-size: 10px; color: var(--purple);
+    background: rgba(179,136,255,.1);
+    border: 1px solid rgba(179,136,255,.2);
+    padding: 2px 7px; border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="logo-icon">⬡</span> ProcMan
+  </div>
+  <div class="header-stats">
+    <div class="stat-pill">
+      <div class="stat-dot green"></div>
+      <span id="stat-running">0</span> 运行中
+    </div>
+    <div class="stat-pill">
+      <div class="stat-dot red"></div>
+      <span id="stat-failed">0</span> 故障
+    </div>
+    <div class="stat-pill">
+      <div class="stat-dot yellow"></div>
+      <span id="stat-stopped">0</span> 停止
+    </div>
+    <div class="ws-indicator disconnected" id="ws-status">● WS</div>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Services</span>
+      <button class="btn-add" onclick="openAddModal()">+ 添加</button>
+    </div>
+    <div class="service-list" id="svc-list"></div>
+  </aside>
+
+  <!-- Main panel -->
+  <main class="main" id="main-panel">
+    <div class="empty-state">
+      <div class="empty-icon">⬡</div>
+      <div class="empty-text">选择一个服务或点击「添加」创建新服务</div>
+    </div>
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast-container" id="toasts"></div>
+
+<!-- Modal: Add/Edit Service -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">添加服务</div>
+    <div class="form-group">
+      <label class="form-label">服务名称 *</label>
+      <input class="form-input" id="f-name" placeholder="my-service">
+    </div>
+    <div class="form-group">
+      <label class="form-label">描述</label>
+      <input class="form-input" id="f-desc" placeholder="服务描述（可选）">
+    </div>
+    <div class="form-group">
+      <label class="form-label">可执行文件路径 *</label>
+      <input class="form-input" id="f-cmd" placeholder="/usr/local/bin/myapp">
+    </div>
+    <div class="form-group">
+      <label class="form-label">启动参数</label>
+      <input class="form-input" id="f-args" placeholder="--port 8080 --config /etc/app.conf">
+    </div>
+    <div class="form-group">
+      <label class="form-label">工作目录</label>
+      <input class="form-input" id="f-workdir" placeholder="/app（留空使用默认）">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-check">
+          <input type="checkbox" id="f-autorestart" checked>
+          崩溃后自动重启
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">重启延迟（秒）</label>
+        <input class="form-input" id="f-delay" type="number" value="3" min="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">最大重启次数</label>
+      <input class="form-input" id="f-maxr" type="number" value="10" min="0">
+    </div>
+    <div class="form-group">
+      <label class="form-label">环境变量</label>
+      <div class="env-editor" id="env-editor"></div>
+      <button class="btn btn-icon btn-icon-add" style="margin-top:8px;width:auto;padding:5px 12px;font-size:11px;gap:4px;" onclick="addEnvRow()">
+        + 添加变量
+      </button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn btn-save" onclick="saveService()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let services = {}; // name → state
+let activeService = null;
+let activeTab = 'info';
+let editingName = null;
+let ws = null;
+let logAutoScroll = true;
+
+// ── WebSocket ──────────────────────────────────────────────────────────────
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/api/ws`);
+
+  ws.onopen = () => {
+    document.getElementById('ws-status').className = 'ws-indicator connected';
+    document.getElementById('ws-status').textContent = '● WS';
+  };
+  ws.onclose = () => {
+    document.getElementById('ws-status').className = 'ws-indicator disconnected';
+    setTimeout(connectWS, 3000);
+  };
+  ws.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'snapshot') {
+      services = {};
+      (msg.data || []).forEach(s => { services[s.config.name] = s; });
+      renderSidebar();
+      if (activeService && services[activeService]) renderDetail();
+    } else if (msg.type === 'status') {
+      if (services[msg.service]) {
+        services[msg.service].status = msg.data;
+        if (msg.data === 'running' || msg.data === 'stopped' || msg.data === 'failed') {
+          fetchService(msg.service);
+        } else {
+          renderSidebar();
+          if (activeService === msg.service) renderDetailHeader();
+        }
+      }
+    } else if (msg.type === 'log') {
+      if (services[msg.service]) {
+        if (!services[msg.service].logs) services[msg.service].logs = [];
+        services[msg.service].logs.push(msg.data);
+        if (activeService === msg.service && activeTab === 'logs') appendLogLine(msg.data);
+      }
+    } else if (msg.type === 'added' || msg.type === 'removed' || msg.type === 'updated') {
+      fetchAll();
+    }
+  };
+}
+
+async function fetchAll() {
+  const r = await fetch('/api/services');
+  const list = await r.json();
+  services = {};
+  list.forEach(s => { services[s.config.name] = s; });
+  renderSidebar();
+  if (activeService && !services[activeService]) {
+    activeService = null;
+    renderMain();
+  } else if (activeService) {
+    renderDetail();
+  }
+  updateStats();
+}
+
+async function fetchService(name) {
+  const r = await fetch(`/api/services/${name}`);
+  if (!r.ok) return;
+  const s = await r.json();
+  services[name] = s;
+  renderSidebar();
+  if (activeService === name) renderDetail();
+  updateStats();
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function statusClass(s) {
+  return { running:'running', stopped:'stopped', starting:'starting',
+           stopping:'stopping', failed:'failed' }[s] || 'stopped';
+}
+
+function renderSidebar() {
+  const list = document.getElementById('svc-list');
+  const sorted = Object.values(services).sort((a,b) => a.config.name.localeCompare(b.config.name));
+  list.innerHTML = sorted.map(s => {
+    const st = statusClass(s.status);
+    return `<div class="svc-item ${s.config.name === activeService ? 'active':''}"
+                 onclick="selectService('${s.config.name}')">
+      <div class="svc-status-dot s-${st}"></div>
+      <div class="svc-info">
+        <div class="svc-name">${esc(s.config.name)}</div>
+        <div class="svc-cmd">${esc(s.config.command)} ${(s.config.args||[]).join(' ')}</div>
+      </div>
+      <div class="svc-badge badge-${st}">${s.status}</div>
+    </div>`;
+  }).join('');
+  updateStats();
+}
+
+function updateStats() {
+  const vals = Object.values(services);
+  document.getElementById('stat-running').textContent = vals.filter(s=>s.status==='running').length;
+  document.getElementById('stat-failed').textContent  = vals.filter(s=>s.status==='failed').length;
+  document.getElementById('stat-stopped').textContent = vals.filter(s=>s.status==='stopped').length;
+}
+
+function selectService(name) {
+  activeService = name;
+  activeTab = 'info';
+  renderSidebar();
+  renderMain();
+}
+
+function renderMain() {
+  const panel = document.getElementById('main-panel');
+  if (!activeService || !services[activeService]) {
+    panel.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">⬡</div>
+      <div class="empty-text">选择一个服务或点击「添加」创建新服务</div>
+    </div>`;
+    return;
+  }
+  panel.innerHTML = `<div class="detail" id="detail-root">
+    <div class="detail-header" id="detail-header-root"></div>
+    <div class="tabs">
+      <div class="tab ${activeTab==='info'?'active':''}" onclick="switchTab('info')">信息</div>
+      <div class="tab ${activeTab==='logs'?'active':''}" onclick="switchTab('logs')">日志</div>
+    </div>
+    <div class="tab-content" id="tab-body"></div>
+  </div>`;
+  renderDetailHeader();
+  renderTabBody();
+}
+
+function renderDetail() {
+  if (document.getElementById('detail-root')) {
+    renderDetailHeader();
+    renderTabBody();
+    renderSidebar();
+  } else {
+    renderMain();
+  }
+}
+
+function renderDetailHeader() {
+  const s = services[activeService];
+  if (!s) return;
+  const st = statusClass(s.status);
+  const running = s.status === 'running';
+  const stopped = s.status === 'stopped' || s.status === 'failed';
+  const hdr = document.getElementById('detail-header-root');
+  if (!hdr) return;
+  hdr.innerHTML = `
+    <div class="svc-status-dot s-${st}" style="width:10px;height:10px;"></div>
+    <div>
+      <div class="detail-name">${esc(s.config.name)}</div>
+      ${s.config.description ? `<div style="font-size:11px;color:var(--muted)">${esc(s.config.description)}</div>` : ''}
+    </div>
+    ${running && s.pid ? `<div class="pid-tag">PID ${s.pid}</div>` : ''}
+    <div class="action-bar" style="margin-left:auto;">
+      <button class="btn btn-start"   ${!stopped?'disabled':''} onclick="svcAction('start')">▶ 启动</button>
+      <button class="btn btn-stop"    ${!running?'disabled':''} onclick="svcAction('stop')">■ 停止</button>
+      <button class="btn btn-restart" ${!running?'disabled':''} onclick="svcAction('restart')">↺ 重启</button>
+      <button class="btn btn-edit"    onclick="openEditModal()">✎ 编辑</button>
+      <button class="btn btn-delete"  onclick="deleteService()">✕</button>
+    </div>`;
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.textContent.includes(tab==='info'?'信息':'日志')));
+  renderTabBody();
+}
+
+function renderTabBody() {
+  const s = services[activeService];
+  if (!s) return;
+  const body = document.getElementById('tab-body');
+  if (!body) return;
+  if (activeTab === 'info') {
+    const envRows = Object.entries(s.config.env || {}).map(([k,v]) =>
+      `<tr><td><code>${esc(k)}</code></td><td><code>${esc(v)}</code></td></tr>`).join('');
+    body.innerHTML = `
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="info-label">命令</div>
+          <div class="info-value mono">${esc(s.config.command)}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">参数</div>
+          <div class="info-value mono">${esc((s.config.args||[]).join(' ') || '—')}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">状态</div>
+          <div class="info-value"><span class="svc-badge badge-${statusClass(s.status)}">${s.status}</span></div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">PID</div>
+          <div class="info-value">${s.pid || '—'}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">启动时间</div>
+          <div class="info-value">${s.started_at ? fmtTime(s.started_at) : '—'}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">重启次数</div>
+          <div class="info-value">${s.restarts} / ${s.config.max_restarts || 10}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">工作目录</div>
+          <div class="info-value mono">${esc(s.config.workdir || '—')}</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">自动重启</div>
+          <div class="info-value">${s.config.auto_restart ? '✓ 启用' : '✗ 禁用'}</div>
+        </div>
+      </div>
+      ${envRows ? `<div class="info-card" style="margin-bottom:16px">
+        <div class="info-label" style="margin-bottom:12px">环境变量</div>
+        <table class="env-table">
+          <thead><tr><th>KEY</th><th>VALUE</th></tr></thead>
+          <tbody>${envRows}</tbody>
+        </table>
+      </div>` : ''}`;
+  } else {
+    body.style.padding = '12px';
+    const logs = s.logs || [];
+    body.innerHTML = `<div class="log-container" id="log-box">
+      ${logs.map(l => logLineHTML(l)).join('')}
+      ${logs.length===0 ? '<span style="color:var(--muted)">暂无日志...</span>' : ''}
+    </div>`;
+    scrollLogsToBottom();
+  }
+}
+
+function logLineHTML(l) {
+  const cls = l.line.startsWith('[procman]') ? 'sys' : (l.is_error ? 'err' : '');
+  return `<div class="log-line">
+    <span class="log-time">${fmtTime(l.time)}</span>
+    <span class="log-text ${cls}">${esc(l.line)}</span>
+  </div>`;
+}
+
+function appendLogLine(l) {
+  const box = document.getElementById('log-box');
+  if (!box) return;
+  const div = document.createElement('div');
+  div.innerHTML = logLineHTML(l);
+  box.appendChild(div.firstChild);
+  if (logAutoScroll) scrollLogsToBottom();
+}
+
+function scrollLogsToBottom() {
+  const box = document.getElementById('log-box');
+  if (box) box.scrollTop = box.scrollHeight;
+}
+
+// ── Service actions ────────────────────────────────────────────────────────
+async function svcAction(action) {
+  const name = activeService;
+  try {
+    const r = await fetch(`/api/services/${name}/${action}`, { method: 'POST' });
+    const j = await r.json();
+    if (!r.ok) { toast(j.error || '操作失败', 'error'); return; }
+    toast(`${action} ${name}`, 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteService() {
+  if (!confirm(`确定删除服务 "${activeService}"?`)) return;
+  const r = await fetch(`/api/services/${activeService}`, { method: 'DELETE' });
+  const j = await r.json();
+  if (!r.ok) { toast(j.error, 'error'); return; }
+  toast(`已删除 ${activeService}`, 'info');
+  activeService = null;
+  await fetchAll();
+}
+
+// ── Modal ──────────────────────────────────────────────────────────────────
+function openAddModal() {
+  editingName = null;
+  document.getElementById('modal-title').textContent = '添加服务';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-name').disabled = false;
+  document.getElementById('f-desc').value = '';
+  document.getElementById('f-cmd').value = '';
+  document.getElementById('f-args').value = '';
+  document.getElementById('f-workdir').value = '';
+  document.getElementById('f-autorestart').checked = true;
+  document.getElementById('f-delay').value = 3;
+  document.getElementById('f-maxr').value = 10;
+  document.getElementById('env-editor').innerHTML = '';
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+function openEditModal() {
+  const s = services[activeService];
+  if (!s) return;
+  editingName = s.config.name;
+  document.getElementById('modal-title').textContent = '编辑服务';
+  document.getElementById('f-name').value = s.config.name;
+  document.getElementById('f-name').disabled = true;
+  document.getElementById('f-desc').value = s.config.description || '';
+  document.getElementById('f-cmd').value = s.config.command;
+  document.getElementById('f-args').value = (s.config.args||[]).join(' ');
+  document.getElementById('f-workdir').value = s.config.workdir || '';
+  document.getElementById('f-autorestart').checked = !!s.config.auto_restart;
+  document.getElementById('f-delay').value = s.config.restart_delay_seconds || 3;
+  document.getElementById('f-maxr').value = s.config.max_restarts || 10;
+  const envEd = document.getElementById('env-editor');
+  envEd.innerHTML = '';
+  Object.entries(s.config.env||{}).forEach(([k,v]) => addEnvRow(k,v));
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-bg').classList.remove('open');
+}
+
+function addEnvRow(k='', v='') {
+  const row = document.createElement('div');
+  row.className = 'env-row';
+  row.innerHTML = `<input class="form-input env-key" placeholder="KEY" value="${esc(k)}">
+    <input class="form-input env-val" placeholder="VALUE" value="${esc(v)}">
+    <button class="btn-icon" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('env-editor').appendChild(row);
+}
+
+async function saveService() {
+  const name = document.getElementById('f-name').value.trim();
+  const cmd  = document.getElementById('f-cmd').value.trim();
+  if (!name || !cmd) { toast('名称和命令为必填项', 'error'); return; }
+
+  const argsStr = document.getElementById('f-args').value.trim();
+  const args = argsStr ? argsStr.split(/\s+/) : [];
+
+  const env = {};
+  document.querySelectorAll('#env-editor .env-row').forEach(row => {
+    const k = row.querySelector('.env-key').value.trim();
+    const v = row.querySelector('.env-val').value.trim();
+    if (k) env[k] = v;
+  });
+
+  const cfg = {
+    name, command: cmd, args, env,
+    description: document.getElementById('f-desc').value.trim(),
+    workdir: document.getElementById('f-workdir').value.trim(),
+    auto_restart: document.getElementById('f-autorestart').checked,
+    restart_delay_seconds: parseInt(document.getElementById('f-delay').value)||3,
+    max_restarts: parseInt(document.getElementById('f-maxr').value)||10,
+  };
+
+  const isEdit = !!editingName;
+  const url = isEdit ? `/api/services/${editingName}` : '/api/services';
+  const method = isEdit ? 'PUT' : 'POST';
+
+  try {
+    const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg) });
+    const j = await r.json();
+    if (!r.ok) { toast(j.error||'保存失败', 'error'); return; }
+    toast(isEdit ? '配置已更新' : `服务 "${name}" 已创建`, 'success');
+    closeModal();
+    await fetchAll();
+    if (!isEdit) selectService(name);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function toast(msg, type='info') {
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtTime(t) {
+  return new Date(t).toLocaleTimeString('zh-CN', {hour12:false});
+}
+
+// close modal on bg click
+document.getElementById('modal-bg').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+fetchAll().then(() => connectWS());
+</script>
+</body>
+</html>
