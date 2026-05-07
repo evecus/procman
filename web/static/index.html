@@ -657,6 +657,7 @@ function renderDetailHeader() {
       <button class="btn btn-start"   ${!stopped?'disabled':''} onclick="svcAction('start')">▶ 启动</button>
       <button class="btn btn-stop"    ${!running?'disabled':''} onclick="svcAction('stop')">■ 停止</button>
       <button class="btn btn-restart" ${!running?'disabled':''} onclick="svcAction('restart')">↺ 重启</button>
+      <button class="btn btn-edit"    onclick="svcToggleAutoStart()">${s.config.auto_start ? '⏻ 禁止自启' : '⏻ 设置自启'}</button>
       <button class="btn btn-edit"    onclick="openEditModal()">✎ 编辑</button>
       <button class="btn btn-delete"  onclick="deleteService()">✕</button>
     </div>`;
@@ -710,6 +711,10 @@ function renderTabBody() {
           <div class="info-label">自动重启</div>
           <div class="info-value">${s.config.auto_restart ? '✓ 启用' : '✗ 禁用'}</div>
         </div>
+        <div class="info-card">
+          <div class="info-label">开机自启</div>
+          <div class="info-value">${s.config.auto_start ? '✓ 启用' : '✗ 禁用'}</div>
+        </div>
       </div>
       ${envRows ? `<div class="info-card" style="margin-bottom:16px">
         <div class="info-label" style="margin-bottom:12px">环境变量</div>
@@ -752,6 +757,21 @@ function scrollLogsToBottom() {
 }
 
 // ── Service actions ────────────────────────────────────────────────────────
+async function svcToggleAutoStart() {
+  const name = activeService;
+  if (!name) return;
+  try {
+    const r = await fetch(`/api/services/${name}/autostart`, { method: "POST" });
+    const j = await r.json();
+    if (!r.ok) { toast(j.error || "操作失败", "error"); return; }
+    const enabled = !!j.auto_start;
+    toast(enabled ? "已设置自启" : "已禁止自启", "success");
+    await refreshService(name);
+  } catch (e) {
+    toast(e.message || "请求失败", "error");
+  }
+}
+
 async function svcAction(action) {
   const name = activeService;
   try {
