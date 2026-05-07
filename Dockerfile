@@ -24,9 +24,9 @@ COPY web/static /app/web/static
 
 RUN chmod +x /app/procman
 RUN mkdir -p /app/data
-
 ENV PROCMAN_DATA=/app/data
 ENV PROCMAN_ADDR=:8080
+ENV WEB_PASSWORD=1234
 
 EXPOSE 8080
 
