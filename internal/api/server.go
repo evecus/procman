@@ -1,10 +1,8 @@
 package api
 
 import (
-	"embed"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"log"
 	"net/http"
 	"strings"
@@ -13,13 +11,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/procman/internal/manager"
 )
-
-// 声明嵌入的静态资源
-// 注意：路径相对于当前 server.go 文件。
-// 如果项目结构是 internal/api/server.go 和 web/static/index.html
-// 则需要向上跳两级找到 web 目录
-//go:embed all:../../web/static
-var staticAssets embed.FS
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
@@ -51,15 +42,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/services/", s.handleService)
 	mux.HandleFunc("/api/ws", s.handleWS)
 
-	// 2. 静态资源路由（前后端合一的关键）
-	// 提取 web/static 子目录，使得访问根目录就是访问 static 里的内容
-	subFS, err := fs.Sub(staticAssets, "../../web/static")
-	if err != nil {
-		log.Fatalf("failed to locate static assets: %v", err)
-	}
-
-	// 使用 http.FS 将嵌入文件系统转为 http 处理器
-	mux.Handle("/", http.FileServer(http.FS(subFS)))
+	// 2. 静态资源路由
+	mux.Handle("/", http.FileServer(http.Dir("web/static")))
 
 	return mux
 }
