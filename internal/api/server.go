@@ -1,8 +1,10 @@
 package api
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"strings"
@@ -11,6 +13,13 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/procman/internal/manager"
 )
+
+// 声明嵌入的静态资源
+// 注意：路径相对于当前 server.go 文件。
+// 如果项目结构是 internal/api/server.go 和 web/static/index.html
+// 则需要向上跳两级找到 web 目录
+//go:embed all:../../web/static
+var staticAssets embed.FS
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
@@ -27,34 +36,49 @@ func New(mgr *manager.Manager) *Server {
 	return s
 }
 
+// StartServer 供 main.go 调用
+func StartServer(addr string, mgr *manager.Manager) error {
+	s := New(mgr)
+	log.Printf("Starting server on %s", addr)
+	return http.ListenAndServe(addr, s.Handler())
+}
+
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
-	// API routes
+	// 1. API 路由
 	mux.HandleFunc("/api/services", s.handleServices)
 	mux.HandleFunc("/api/services/", s.handleService)
 	mux.HandleFunc("/api/ws", s.handleWS)
 
-	// Static frontend
-	mux.Handle("/", http.FileServer(http.Dir("/app/web/static")))
+	// 2. 静态资源路由（前后端合一的关键）
+	// 提取 web/static 子目录，使得访问根目录就是访问 static 里的内容
+	subFS, err := fs.Sub(staticAssets, "../../web/static")
+	if err != nil {
+		log.Fatalf("failed to locate static assets: %v", err)
+	}
+
+	// 使用 http.FS 将嵌入文件系统转为 http 处理器
+	mux.Handle("/", http.FileServer(http.FS(subFS)))
 
 	return mux
 }
 
-// ── broadcast ──────────────────────────────────────────────────────────────
+// ── WebSocket 广播逻辑 ──────────────────────────────────────────────────────
 
 func (s *Server) broadcastLoop() {
 	for ev := range s.mgr.Events() {
 		data, _ := json.Marshal(ev)
 		s.clients.Range(func(k, v interface{}) bool {
-			conn := k.(*websocket.Conn)
-			_ = conn.WriteMessage(websocket.TextMessage, data)
+			c := k.(*websocket.Conn)
+			if err := c.WriteMessage(websocket.TextMessage, data); err != nil {
+				c.Close()
+				s.clients.Delete(k)
+			}
 			return true
 		})
 	}
 }
-
-// ── WebSocket ──────────────────────────────────────────────────────────────
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -62,114 +86,57 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.clients.Store(conn, true)
-	defer func() {
-		s.clients.Delete(conn)
-		conn.Close()
-	}()
-
-	// send current state snapshot
-	services := s.mgr.List()
-	snap, _ := json.Marshal(map[string]interface{}{"type": "snapshot", "data": services})
-	_ = conn.WriteMessage(websocket.TextMessage, snap)
-
-	// keep alive
-	for {
-		if _, _, err := conn.ReadMessage(); err != nil {
-			break
-		}
-	}
 }
 
-// ── REST helpers ───────────────────────────────────────────────────────────
-
-func writeJSON(w http.ResponseWriter, code int, v interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func writeError(w http.ResponseWriter, code int, msg string) {
-	writeJSON(w, code, map[string]string{"error": msg})
-}
-
-// ── /api/services ──────────────────────────────────────────────────────────
+// ── API 处理器 ──────────────────────────────────────────────────────────────
 
 func (s *Server) handleServices(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
+	if r.Method == http.MethodGet {
 		writeJSON(w, 200, s.mgr.List())
-
-	case http.MethodPost:
+		return
+	}
+	if r.Method == http.MethodPost {
 		var cfg manager.ServiceConfig
 		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
 			writeError(w, 400, "invalid json")
 			return
 		}
-		if cfg.Name == "" || cfg.Command == "" {
-			writeError(w, 400, "name and command required")
-			return
-		}
 		if err := s.mgr.AddService(cfg); err != nil {
-			writeError(w, 409, err.Error())
+			writeError(w, 400, err.Error())
 			return
 		}
-		writeJSON(w, 201, map[string]string{"status": "created"})
-
-	default:
-		writeError(w, 405, "method not allowed")
+		writeJSON(w, 201, cfg)
+		return
 	}
+	w.WriteHeader(405)
 }
 
-// ── /api/services/{name}[/action] ─────────────────────────────────────────
-
 func (s *Server) handleService(w http.ResponseWriter, r *http.Request) {
-	// strip prefix "/api/services/"
-	path := strings.TrimPrefix(r.URL.Path, "/api/services/")
-	parts := strings.SplitN(path, "/", 2)
+	// 路径解析示例: /api/services/my-app/start -> name=my-app, action=start
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/services/"), "/")
 	name := parts[0]
 	action := ""
-	if len(parts) == 2 {
+	if len(parts) > 1 {
 		action = parts[1]
 	}
 
-	if name == "" {
-		writeError(w, 400, "service name required")
-		return
-	}
-
 	switch {
-	// GET /api/services/{name}
 	case action == "" && r.Method == http.MethodGet:
-		st, err := s.mgr.Get(name)
+		state, err := s.mgr.Get(name)
 		if err != nil {
 			writeError(w, 404, err.Error())
 			return
 		}
-		writeJSON(w, 200, st)
+		writeJSON(w, 200, state)
 
-	// PUT /api/services/{name} — update config
-	case action == "" && r.Method == http.MethodPut:
-		var cfg manager.ServiceConfig
-		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
-			writeError(w, 400, "invalid json")
-			return
-		}
-		cfg.Name = name
-		if err := s.mgr.UpdateService(cfg); err != nil {
+	case action == "logs" && r.Method == http.MethodGet:
+		logs, err := s.mgr.GetLogs(name)
+		if err != nil {
 			writeError(w, 404, err.Error())
 			return
 		}
-		writeJSON(w, 200, map[string]string{"status": "updated"})
+		writeJSON(w, 200, logs)
 
-	// DELETE /api/services/{name}
-	case action == "" && r.Method == http.MethodDelete:
-		if err := s.mgr.RemoveService(name); err != nil {
-			writeError(w, 400, err.Error())
-			return
-		}
-		writeJSON(w, 200, map[string]string{"status": "removed"})
-
-	// POST /api/services/{name}/start|stop|restart
 	case action == "start" && r.Method == http.MethodPost:
 		if err := s.mgr.Start(name); err != nil {
 			writeError(w, 400, err.Error())
@@ -191,22 +158,26 @@ func (s *Server) handleService(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, 200, map[string]string{"status": "restarted"})
 
-	// GET /api/services/{name}/logs
-	case action == "logs" && r.Method == http.MethodGet:
-		logs, err := s.mgr.GetLogs(name)
-		if err != nil {
-			writeError(w, 404, err.Error())
+	case action == "" && r.Method == http.MethodDelete:
+		if err := s.mgr.RemoveService(name); err != nil {
+			writeError(w, 400, err.Error())
 			return
 		}
-		writeJSON(w, 200, logs)
+		writeJSON(w, 200, map[string]string{"status": "removed"})
 
 	default:
-		writeError(w, 404, fmt.Sprintf("unknown action %q", action))
+		w.WriteHeader(405)
 	}
 }
 
-func StartServer(addr string, mgr *manager.Manager) error {
-	srv := New(mgr)
-	log.Printf("procman listening on %s", addr)
-	return http.ListenAndServe(addr, srv.Handler())
+// ── Helper functions ───────────────────────────────────────────────────────
+
+func writeJSON(w http.ResponseWriter, code int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(data)
+}
+
+func writeError(w http.ResponseWriter, code int, msg string) {
+	writeJSON(w, code, map[string]string{"error": msg})
 }
