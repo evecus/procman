@@ -1,9 +1,11 @@
 package api
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 
@@ -44,7 +46,12 @@ func (s *Server) Handler() http.Handler {
 	// 2. 静态资源路由
 	mux.Handle("/", http.FileServer(http.Dir("web/static")))
 
-	return mux
+	webPassword := os.Getenv("WEB_PASSWORD")
+	if webPassword == "" {
+		return mux
+	}
+
+	return s.withBasicAuth(mux, webPassword)
 }
 
 // ── WebSocket 广播逻辑 ──────────────────────────────────────────────────────
@@ -151,6 +158,19 @@ func (s *Server) handleService(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(405)
 	}
+}
+
+func (s *Server) withBasicAuth(next http.Handler, password string) http.Handler {
+	realm := "procman"
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, provided, ok := r.BasicAuth()
+		if !ok || subtle.ConstantTimeCompare([]byte(provided), []byte(password)) != 1 {
+			w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // ── Helper functions ───────────────────────────────────────────────────────
