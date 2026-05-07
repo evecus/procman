@@ -23,26 +23,27 @@ const (
 )
 
 type ServiceConfig struct {
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Command     string            `json:"command"`
-	Args        []string          `json:"args"`
-	Env         map[string]string `json:"env"`
-	WorkDir     string            `json:"workdir"`
-	AutoRestart bool              `json:"auto_restart"`
-	RestartDelay int              `json:"restart_delay_seconds"`
-	MaxRestarts  int              `json:"max_restarts"`
+	Name         string            `json:"name"`
+	Description  string            `json:"description"`
+	Command      string            `json:"command"`
+	Args         []string          `json:"args"`
+	Env          map[string]string `json:"env"`
+	WorkDir      string            `json:"workdir"`
+	AutoRestart  bool              `json:"auto_restart"`
+	AutoStart    bool              `json:"auto_start"`
+	RestartDelay int               `json:"restart_delay_seconds"`
+	MaxRestarts  int               `json:"max_restarts"`
 }
 
 type ServiceState struct {
-	Config      ServiceConfig `json:"config"`
-	Status      ServiceStatus `json:"status"`
-	PID         int           `json:"pid"`
-	StartedAt   *time.Time    `json:"started_at"`
-	StoppedAt   *time.Time    `json:"stopped_at"`
-	Restarts    int           `json:"restarts"`
-	ExitCode    int           `json:"exit_code"`
-	Logs        []LogEntry    `json:"logs"`
+	Config    ServiceConfig `json:"config"`
+	Status    ServiceStatus `json:"status"`
+	PID       int           `json:"pid"`
+	StartedAt *time.Time    `json:"started_at"`
+	StoppedAt *time.Time    `json:"stopped_at"`
+	Restarts  int           `json:"restarts"`
+	ExitCode  int           `json:"exit_code"`
+	Logs      []LogEntry    `json:"logs"`
 }
 
 type LogEntry struct {
@@ -85,6 +86,7 @@ func New(dataDir string) (*Manager, error) {
 	if err := m.loadAll(); err != nil {
 		fmt.Fprintf(os.Stderr, "warn: load services: %v\n", err)
 	}
+	go m.startAutoStartServices()
 	return m, nil
 }
 
@@ -138,6 +140,23 @@ func (m *Manager) loadAll() error {
 		m.services[cfg.Name] = inst
 	}
 	return nil
+}
+
+func (m *Manager) startAutoStartServices() {
+	m.mu.RLock()
+	names := make([]string, 0, len(m.services))
+	for name, inst := range m.services {
+		if inst.state.Config.AutoStart {
+			names = append(names, name)
+		}
+	}
+	m.mu.RUnlock()
+
+	for _, name := range names {
+		if err := m.Start(name); err != nil {
+			fmt.Fprintf(os.Stderr, "warn: auto start %s: %v\n", name, err)
+		}
+	}
 }
 
 // ── CRUD ───────────────────────────────────────────────────────────────────
