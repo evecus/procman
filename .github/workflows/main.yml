@@ -16,6 +16,8 @@ jobs:
           go-version: '1.22'
           cache: true
 
+      - run: go mod tidy
+
       # --- 第一步：交叉编译（前后端已通过 go:embed 合一） ---
       - name: Build Go binaries for multiple archs
         run: |
