@@ -35,7 +35,6 @@
     overflow-x: hidden;
   }
 
-  /* grid noise overlay */
   body::before {
     content: '';
     position: fixed; inset: 0;
@@ -47,7 +46,85 @@
     z-index: 0;
   }
 
-  /* ── HEADER ──────────────────────────────────────────── */
+  /* ── LOGIN OVERLAY ─────────────────────────────── */
+  #login-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(10,12,15,.96);
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(8px);
+  }
+  #login-overlay.hidden { display: none; }
+
+  .login-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px 36px;
+    width: 340px;
+    box-shadow: 0 24px 64px rgba(0,0,0,.6), 0 0 0 1px rgba(0,212,255,.08);
+    position: relative;
+  }
+  .login-logo {
+    font-family: var(--sans);
+    font-size: 22px; font-weight: 800;
+    color: var(--accent);
+    text-align: center;
+    margin-bottom: 6px;
+    letter-spacing: -.5px;
+  }
+  .login-subtitle {
+    font-size: 11px; color: var(--muted);
+    text-align: center; margin-bottom: 28px;
+  }
+  .login-label {
+    font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .08em;
+    margin-bottom: 6px;
+  }
+  .login-input {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color .2s;
+    margin-bottom: 18px;
+  }
+  .login-input:focus { border-color: var(--accent); }
+  .login-btn {
+    width: 100%;
+    background: var(--accent);
+    color: #000;
+    font-family: var(--mono);
+    font-size: 13px; font-weight: 600;
+    padding: 11px;
+    border: none; border-radius: 6px;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .login-btn:hover { opacity: .85; }
+  .login-err {
+    font-size: 11px; color: var(--red);
+    text-align: center; margin-top: 10px;
+    min-height: 16px;
+  }
+  .login-scan {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2px; background: var(--accent);
+    border-radius: 12px 12px 0 0;
+    animation: scan 2s ease-in-out infinite;
+  }
+  @keyframes scan {
+    0%   { opacity: 1; transform: translateX(-100%); }
+    50%  { opacity: .6; transform: translateX(0); }
+    100% { opacity: 1; transform: translateX(100%); }
+  }
+
+  /* ── HEADER ─────────────────────────────────────── */
   header {
     position: sticky; top: 0; z-index: 100;
     background: rgba(10,12,15,.92);
@@ -66,6 +143,20 @@
   }
   .logo-icon { font-size: 20px; }
 
+  .header-nav {
+    display: flex; gap: 2px; margin-left: 20px;
+  }
+  .nav-btn {
+    background: none; border: none;
+    color: var(--muted); font-family: var(--mono);
+    font-size: 11px; padding: 5px 12px;
+    border-radius: 4px; cursor: pointer;
+    transition: all .15s;
+    text-transform: uppercase; letter-spacing: .06em;
+  }
+  .nav-btn.active { color: var(--accent); background: rgba(0,212,255,.08); }
+  .nav-btn:hover:not(.active) { color: var(--text); }
+
   .header-stats {
     margin-left: auto;
     display: flex; gap: 20px; align-items: center;
@@ -78,9 +169,9 @@
     width: 8px; height: 8px; border-radius: 50%;
     animation: pulse-dot 2s infinite;
   }
-  .stat-dot.green { background: var(--green); }
-  .stat-dot.red   { background: var(--red);   }
-  .stat-dot.yellow{ background: var(--yellow);}
+  .stat-dot.green  { background: var(--green); }
+  .stat-dot.red    { background: var(--red); }
+  .stat-dot.yellow { background: var(--yellow); }
 
   @keyframes pulse-dot {
     0%,100% { opacity: 1; }
@@ -88,332 +179,355 @@
   }
 
   .ws-indicator {
-    font-size: 10px;
-    padding: 3px 8px;
-    border-radius: 3px;
-    border: 1px solid;
+    font-size: 10px; padding: 3px 8px;
+    border-radius: 3px; border: 1px solid;
   }
-  .ws-indicator.connected    { color: var(--green);  border-color: var(--green);  }
-  .ws-indicator.disconnected { color: var(--red);    border-color: var(--red);    }
+  .ws-indicator.connected    { color: var(--green);  border-color: var(--green); }
+  .ws-indicator.disconnected { color: var(--red);    border-color: var(--red); }
 
-  /* ── LAYOUT ──────────────────────────────────────────── */
+  .logout-btn {
+    background: none; border: 1px solid var(--border);
+    color: var(--muted); font-family: var(--mono);
+    font-size: 10px; padding: 4px 10px; border-radius: 4px;
+    cursor: pointer; transition: all .15s;
+  }
+  .logout-btn:hover { border-color: var(--red); color: var(--red); }
+
+  /* ── LAYOUT ─────────────────────────────────────── */
   .layout {
-    display: flex; height: calc(100vh - 56px);
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    height: calc(100vh - 56px);
     position: relative; z-index: 1;
   }
 
-  /* sidebar */
+  /* ── SIDEBAR ────────────────────────────────────── */
   .sidebar {
-    width: 280px; flex-shrink: 0;
     background: var(--bg1);
     border-right: 1px solid var(--border);
     display: flex; flex-direction: column;
     overflow: hidden;
   }
-
   .sidebar-header {
     padding: 16px;
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between;
   }
   .sidebar-title {
-    font-size: 10px; text-transform: uppercase;
-    letter-spacing: 2px; color: var(--muted);
-    font-family: var(--sans);
+    font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--muted);
   }
-
   .btn-add {
-    background: var(--accent);
-    color: var(--bg);
-    border: none; cursor: pointer;
-    font-family: var(--mono);
-    font-size: 11px; font-weight: 600;
-    padding: 5px 10px; border-radius: 4px;
-    transition: all .15s;
+    background: rgba(0,212,255,.1);
+    border: 1px solid rgba(0,212,255,.3);
+    color: var(--accent); font-family: var(--mono);
+    font-size: 11px; padding: 4px 10px; border-radius: 4px;
+    cursor: pointer; transition: all .15s;
   }
-  .btn-add:hover { background: #33ddff; transform: translateY(-1px); }
+  .btn-add:hover { background: rgba(0,212,255,.2); }
 
-  .service-list {
-    flex: 1; overflow-y: auto;
-    padding: 8px;
-  }
-  .service-list::-webkit-scrollbar { width: 4px; }
-  .service-list::-webkit-scrollbar-track { background: transparent; }
-  .service-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .service-list { overflow-y: auto; flex: 1; padding: 8px; }
 
   .svc-item {
-    display: flex; align-items: center; gap: 10px;
     padding: 10px 12px; border-radius: 6px;
-    cursor: pointer; transition: all .15s;
-    border: 1px solid transparent;
-    margin-bottom: 2px;
+    cursor: pointer; display: flex; align-items: center; gap: 10px;
+    transition: background .1s; margin-bottom: 2px;
   }
-  .svc-item:hover  { background: var(--bg2); border-color: var(--border); }
-  .svc-item.active { background: var(--bg3); border-color: var(--accent); }
+  .svc-item:hover  { background: var(--bg2); }
+  .svc-item.active { background: var(--bg3); }
 
   .svc-status-dot {
-    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
   }
   .s-running  { background: var(--green); box-shadow: 0 0 6px var(--green); }
   .s-stopped  { background: var(--muted); }
-  .s-starting,.s-stopping { background: var(--yellow); animation: pulse-dot 1s infinite; }
-  .s-failed   { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+  .s-starting { background: var(--yellow); animation: pulse-dot 1s infinite; }
+  .s-stopping { background: var(--orange); }
+  .s-failed   { background: var(--red); box-shadow: 0 0 6px var(--red); }
 
   .svc-info { flex: 1; min-width: 0; }
-  .svc-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .svc-name { font-size: 12px; font-weight: 500; truncate: ellipsis; white-space: nowrap; overflow: hidden; }
   .svc-cmd  { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .svc-badge {
-    font-size: 9px; text-transform: uppercase; letter-spacing: .5px;
-    padding: 2px 5px; border-radius: 3px; flex-shrink: 0;
+    font-size: 9px; padding: 2px 6px; border-radius: 3px;
+    text-transform: uppercase; letter-spacing: .04em; flex-shrink: 0;
   }
-  .badge-running  { background: rgba(0,230,118,.15); color: var(--green); }
-  .badge-stopped  { background: rgba(90,112,128,.15); color: var(--muted); }
-  .badge-starting,
-  .badge-stopping { background: rgba(255,215,64,.15);  color: var(--yellow); }
-  .badge-failed   { background: rgba(255,61,87,.15);   color: var(--red); }
+  .badge-running  { background: rgba(0,230,118,.12); color: var(--green); }
+  .badge-stopped  { background: rgba(90,112,128,.12); color: var(--muted); }
+  .badge-starting { background: rgba(255,215,64,.12); color: var(--yellow); }
+  .badge-stopping { background: rgba(255,140,66,.12); color: var(--orange); }
+  .badge-failed   { background: rgba(255,61,87,.12);  color: var(--red); }
 
-  /* main */
+  /* ── MAIN PANEL ─────────────────────────────────── */
   .main {
-    flex: 1; display: flex; flex-direction: column;
-    overflow: hidden; background: var(--bg);
+    overflow: hidden;
+    display: flex; flex-direction: column;
   }
 
   .empty-state {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    color: var(--muted); gap: 12px;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: 100%;
+    gap: 12px; color: var(--muted);
   }
-  .empty-icon { font-size: 48px; opacity: .3; }
-  .empty-text { font-size: 13px; }
+  .empty-icon { font-size: 40px; opacity: .2; }
+  .empty-text { font-size: 12px; }
 
-  /* detail pane */
-  .detail { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  /* ── DETAIL ─────────────────────────────────────── */
+  .detail { display: flex; flex-direction: column; height: 100%; }
 
   .detail-header {
     padding: 16px 24px;
     border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 16px;
-    background: var(--bg1);
+    display: flex; align-items: center; gap: 12px;
+    flex-shrink: 0;
   }
-  .detail-name {
-    font-family: var(--sans);
-    font-size: 22px; font-weight: 700;
-    letter-spacing: -.5px;
+  .detail-name { font-size: 16px; font-weight: 600; }
+  .pid-tag {
+    font-size: 10px; padding: 3px 8px;
+    background: rgba(0,212,255,.1);
+    border: 1px solid rgba(0,212,255,.2);
+    border-radius: 3px; color: var(--accent);
   }
-  .detail-desc { font-size: 12px; color: var(--muted); flex: 1; }
 
-  .action-bar { display: flex; gap: 8px; align-items: center; }
-
+  .action-bar { display: flex; gap: 6px; flex-wrap: wrap; }
   .btn {
-    border: 1px solid; cursor: pointer;
-    font-family: var(--mono); font-size: 11px; font-weight: 500;
-    padding: 6px 14px; border-radius: 4px;
-    transition: all .15s; background: transparent;
-    display: flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 11px;
+    padding: 5px 12px; border-radius: 4px; border: 1px solid;
+    cursor: pointer; transition: all .15s;
   }
-  .btn:hover { transform: translateY(-1px); }
-  .btn:active { transform: translateY(0); }
-  .btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+  .btn:disabled { opacity: .3; cursor: not-allowed; }
+  .btn-start   { color: var(--green);  border-color: rgba(0,230,118,.3);  background: rgba(0,230,118,.06); }
+  .btn-stop    { color: var(--red);    border-color: rgba(255,61,87,.3);   background: rgba(255,61,87,.06); }
+  .btn-restart { color: var(--yellow); border-color: rgba(255,215,64,.3);  background: rgba(255,215,64,.06); }
+  .btn-edit    { color: var(--muted);  border-color: var(--border);        background: transparent; }
+  .btn-delete  { color: var(--red);    border-color: rgba(255,61,87,.2);   background: transparent; }
+  .btn-cancel  { color: var(--muted);  border-color: var(--border);        background: transparent; }
+  .btn-save    { color: #000;          border-color: var(--accent);        background: var(--accent); }
 
-  .btn-start   { color: var(--green);  border-color: var(--green); }
-  .btn-start:hover:not(:disabled)   { background: rgba(0,230,118,.1); }
-  .btn-stop    { color: var(--red);    border-color: var(--red); }
-  .btn-stop:hover:not(:disabled)    { background: rgba(255,61,87,.1); }
-  .btn-restart { color: var(--yellow); border-color: var(--yellow); }
-  .btn-restart:hover:not(:disabled) { background: rgba(255,215,64,.1); }
-  .btn-edit    { color: var(--accent); border-color: var(--accent); }
-  .btn-edit:hover:not(:disabled)    { background: rgba(0,212,255,.1); }
-  .btn-delete  { color: var(--muted);  border-color: var(--muted); }
-  .btn-delete:hover:not(:disabled)  { color: var(--red); border-color: var(--red); background: rgba(255,61,87,.1); }
+  .btn-start:not(:disabled):hover   { background: rgba(0,230,118,.15); }
+  .btn-stop:not(:disabled):hover    { background: rgba(255,61,87,.15); }
+  .btn-restart:not(:disabled):hover { background: rgba(255,215,64,.15); }
+  .btn-edit:hover    { border-color: var(--accent); color: var(--accent); }
+  .btn-delete:hover  { background: rgba(255,61,87,.1); }
+  .btn-save:hover    { opacity: .85; }
 
-  /* detail tabs */
   .tabs {
     display: flex; gap: 0;
     border-bottom: 1px solid var(--border);
-    background: var(--bg1);
-    padding: 0 24px;
+    padding: 0 24px; flex-shrink: 0;
   }
   .tab {
-    font-size: 11px; font-weight: 500;
-    padding: 10px 16px;
+    font-size: 11px; padding: 10px 16px;
     cursor: pointer; color: var(--muted);
     border-bottom: 2px solid transparent;
-    transition: all .15s; text-transform: uppercase;
-    letter-spacing: 1px;
+    transition: all .15s;
+    text-transform: uppercase; letter-spacing: .06em;
   }
-  .tab:hover  { color: var(--text); }
   .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab:hover:not(.active) { color: var(--text); }
 
-  /* info tab */
-  .tab-content { flex: 1; overflow-y: auto; padding: 24px; }
-  .tab-content::-webkit-scrollbar { width: 4px; }
-  .tab-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .tab-content {
+    flex: 1; overflow: auto;
+    padding: 16px 24px;
+  }
 
+  /* ── INFO GRID ──────────────────────────────────── */
   .info-grid {
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 16px; margin-bottom: 24px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px; margin-bottom: 16px;
   }
   .info-card {
-    background: var(--bg1);
-    border: 1px solid var(--border);
-    border-radius: 8px; padding: 16px;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px 14px;
   }
-  .info-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-  .info-value { font-size: 14px; word-break: break-all; }
+  .info-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+  .info-value { font-size: 13px; word-break: break-all; }
   .info-value.mono { font-family: var(--mono); font-size: 12px; }
 
-  .env-table { width: 100%; border-collapse: collapse; }
-  .env-table th, .env-table td {
-    text-align: left; padding: 8px 12px;
-    border-bottom: 1px solid var(--border);
-    font-size: 12px;
-  }
-  .env-table th { color: var(--muted); font-weight: 400; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .env-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .env-table th, .env-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  .env-table th { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
 
-  /* log tab */
+  /* ── LOG ────────────────────────────────────────── */
   .log-container {
-    background: #060810;
-    border-radius: 8px;
+    background: var(--bg1); border-radius: 6px;
+    padding: 12px; font-size: 11px; line-height: 1.6;
+    height: 100%; overflow-y: auto;
     border: 1px solid var(--border);
-    height: 100%;
-    overflow-y: auto;
-    padding: 12px;
-    font-size: 11px;
-    line-height: 1.7;
-    display: flex; flex-direction: column;
   }
-  .log-container::-webkit-scrollbar { width: 4px; }
-  .log-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  .log-line { display: flex; gap: 12px; }
-  .log-time { color: var(--muted); flex-shrink: 0; user-select: none; }
-  .log-text  { color: var(--text); flex: 1; word-break: break-all; }
+  .log-line { display: flex; gap: 10px; padding: 1px 0; }
+  .log-time { color: var(--muted); flex-shrink: 0; font-size: 10px; padding-top: 1px; }
+  .log-text { white-space: pre-wrap; word-break: break-all; }
   .log-text.err { color: var(--red); }
-  .log-text.sys { color: var(--accent); }
+  .log-text.sys { color: var(--yellow); }
 
-  /* ── MODAL ───────────────────────────────────────────── */
-  .modal-bg {
-    display: none; position: fixed; inset: 0; z-index: 500;
-    background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
-    align-items: center; justify-content: center;
+  /* ── TERMINAL ───────────────────────────────────── */
+  #terminal-page {
+    display: none;
+    flex-direction: column;
+    height: 100%;
   }
-  .modal-bg.open { display: flex; }
+  #terminal-page.active { display: flex; }
 
-  .modal {
-    background: var(--bg1);
-    border: 1px solid var(--border);
-    border-radius: 12px; padding: 28px;
-    width: 560px; max-width: 95vw;
-    max-height: 90vh; overflow-y: auto;
-    box-shadow: 0 24px 80px rgba(0,0,0,.6);
-    animation: modal-in .2s ease;
+  .term-toolbar {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    flex-shrink: 0;
   }
-  @keyframes modal-in {
-    from { opacity: 0; transform: translateY(16px) scale(.97); }
-    to   { opacity: 1; transform: none; }
+  .term-status {
+    font-size: 10px; padding: 3px 8px; border-radius: 3px; border: 1px solid;
   }
+  .term-status.connected    { color: var(--green);  border-color: var(--green); }
+  .term-status.disconnected { color: var(--muted);  border-color: var(--border); }
 
-  .modal-title {
-    font-family: var(--sans); font-size: 18px; font-weight: 700;
-    margin-bottom: 24px; color: var(--accent);
-  }
-
-  .form-group { margin-bottom: 16px; }
-  .form-label {
-    display: block; font-size: 10px; text-transform: uppercase;
-    letter-spacing: 1px; color: var(--muted); margin-bottom: 6px;
-  }
-  .form-input, .form-textarea, .form-select {
-    width: 100%; background: var(--bg2);
-    border: 1px solid var(--border);
-    color: var(--text); font-family: var(--mono); font-size: 12px;
-    padding: 8px 12px; border-radius: 6px;
-    outline: none; transition: border-color .15s;
-  }
-  .form-input:focus, .form-textarea:focus {
-    border-color: var(--accent);
-  }
-  .form-textarea { resize: vertical; min-height: 80px; }
-  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .form-check { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; }
-  .form-check input { accent-color: var(--accent); }
-
-  .env-editor { display: flex; flex-direction: column; gap: 8px; }
-  .env-row { display: flex; gap: 8px; align-items: center; }
-  .env-row input { flex: 1; }
-  .btn-icon {
-    width: 28px; height: 28px;
-    border: 1px solid var(--border); border-radius: 4px;
-    background: transparent; color: var(--muted);
-    cursor: pointer; font-size: 14px;
-    display: flex; align-items: center; justify-content: center;
+  .term-btn {
+    font-family: var(--mono); font-size: 11px;
+    padding: 4px 12px; border-radius: 4px; border: 1px solid var(--border);
+    color: var(--muted); background: transparent; cursor: pointer;
     transition: all .15s;
   }
-  .btn-icon:hover { color: var(--red); border-color: var(--red); }
-  .btn-icon-add { color: var(--green) !important; }
-  .btn-icon-add:hover { border-color: var(--green) !important; }
+  .term-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .term-btn.danger:hover { border-color: var(--red); color: var(--red); }
 
-  .modal-actions {
-    display: flex; gap: 10px; justify-content: flex-end;
-    margin-top: 24px; padding-top: 20px;
-    border-top: 1px solid var(--border);
+  .term-wrap {
+    flex: 1; overflow: hidden;
+    display: flex; flex-direction: column;
+    padding: 12px;
+    gap: 0;
   }
-  .btn-cancel { color: var(--muted); border-color: var(--border); }
-  .btn-cancel:hover { color: var(--text); border-color: var(--text); }
-  .btn-save { color: var(--accent); border-color: var(--accent); }
-  .btn-save:hover { background: rgba(0,212,255,.1); }
 
-  /* toast */
-  .toast-container {
-    position: fixed; bottom: 24px; right: 24px; z-index: 1000;
-    display: flex; flex-direction: column; gap: 8px;
+  #term-output {
+    flex: 1; overflow-y: auto;
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    padding: 12px;
+    font-family: var(--mono); font-size: 12px; line-height: 1.65;
+    color: var(--text);
+    white-space: pre-wrap; word-break: break-all;
   }
+  #term-output .t-err  { color: var(--red); }
+  #term-output .t-sys  { color: var(--yellow); }
+  #term-output .t-info { color: var(--accent); }
+
+  .term-input-row {
+    display: flex; align-items: center;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 0 0 6px 6px;
+    padding: 0 12px;
+  }
+  .term-prompt { color: var(--accent); font-size: 12px; margin-right: 8px; user-select: none; }
+  #term-input {
+    flex: 1; background: none; border: none;
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+    padding: 10px 0; outline: none;
+  }
+  .term-send-btn {
+    background: none; border: none; color: var(--muted);
+    font-size: 14px; cursor: pointer; padding: 0 4px;
+    transition: color .15s;
+  }
+  .term-send-btn:hover { color: var(--accent); }
+
+  /* ── TOAST ──────────────────────────────────────── */
+  .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 10000; display: flex; flex-direction: column; gap: 8px; }
   .toast {
-    background: var(--bg2); border: 1px solid var(--border);
-    border-left: 3px solid;
-    padding: 10px 16px; border-radius: 6px;
-    font-size: 12px; max-width: 320px;
-    animation: toast-in .2s ease;
-    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    font-size: 12px; padding: 10px 16px; border-radius: 6px;
+    border: 1px solid; animation: slideIn .2s ease;
+    max-width: 320px;
   }
-  .toast.success { border-left-color: var(--green); }
-  .toast.error   { border-left-color: var(--red);   }
-  .toast.info    { border-left-color: var(--accent); }
-  @keyframes toast-in {
-    from { opacity: 0; transform: translateX(20px); }
-    to   { opacity: 1; transform: none; }
-  }
+  @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } }
+  .toast.success { background: rgba(0,230,118,.1); border-color: rgba(0,230,118,.3); color: var(--green); }
+  .toast.error   { background: rgba(255,61,87,.1);  border-color: rgba(255,61,87,.3);  color: var(--red); }
+  .toast.info    { background: rgba(0,212,255,.1);  border-color: rgba(0,212,255,.3);  color: var(--accent); }
 
-  /* pid badge */
-  .pid-tag {
-    font-size: 10px; color: var(--purple);
-    background: rgba(179,136,255,.1);
-    border: 1px solid rgba(179,136,255,.2);
-    padding: 2px 7px; border-radius: 3px;
+  /* ── MODAL ──────────────────────────────────────── */
+  .modal-bg {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+    display: none; align-items: center; justify-content: center;
   }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 24px; width: 520px; max-width: 95vw;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal-title { font-size: 15px; font-weight: 600; margin-bottom: 20px; }
+
+  .form-group { margin-bottom: 14px; }
+  .form-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 5px; display: block; }
+  .form-input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 5px; color: var(--text); font-family: var(--mono);
+    font-size: 12px; padding: 8px 10px; outline: none;
+    transition: border-color .2s;
+  }
+  .form-input:focus { border-color: var(--accent); }
+  .form-check { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; }
+
+  .env-editor { display: flex; flex-direction: column; gap: 6px; }
+  .env-row { display: flex; gap: 6px; align-items: center; }
+  .env-key, .env-val { flex: 1; }
+  .btn-icon {
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--muted); font-size: 12px;
+    width: 28px; height: 28px; border-radius: 4px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+  }
+  .btn-icon:hover { border-color: var(--red); color: var(--red); }
+  .btn-icon-add:hover { border-color: var(--accent); color: var(--accent); }
+
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+  /* ── SERVICES PAGE ──────────────────────────────── */
+  #services-page { display: flex; height: 100%; }
+  #services-page.hidden { display: none; }
 </style>
 </head>
 <body>
 
+<!-- Login Overlay -->
+<div id="login-overlay">
+  <div class="login-box">
+    <div class="login-scan"></div>
+    <div class="login-logo">⬡ ProcMan</div>
+    <div class="login-subtitle">进程管理器 — 请输入访问密码</div>
+    <div class="form-group">
+      <div class="login-label">密码</div>
+      <input class="login-input" id="login-pw" type="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="login-btn" onclick="doLogin()">登 录</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- Header -->
 <header>
   <div class="logo">
-    <span class="logo-icon">⬡</span> ProcMan
+    <span class="logo-icon">⬡</span>
+    ProcMan
   </div>
+
+  <div class="header-nav">
+    <button class="nav-btn active" id="nav-services" onclick="showPage('services')">Services</button>
+    <button class="nav-btn" id="nav-terminal" onclick="showPage('terminal')">Terminal</button>
+  </div>
+
   <div class="header-stats">
-    <div class="stat-pill">
-      <div class="stat-dot green"></div>
-      <span id="stat-running">0</span> 运行中
-    </div>
-    <div class="stat-pill">
-      <div class="stat-dot red"></div>
-      <span id="stat-failed">0</span> 故障
-    </div>
-    <div class="stat-pill">
-      <div class="stat-dot yellow"></div>
-      <span id="stat-stopped">0</span> 停止
-    </div>
+    <div class="stat-pill"><div class="stat-dot green"></div><span id="stat-running">0</span> 运行</div>
+    <div class="stat-pill"><div class="stat-dot red"></div><span id="stat-failed">0</span> 失败</div>
+    <div class="stat-pill"><div class="stat-dot yellow"></div><span id="stat-stopped">0</span> 停止</div>
     <div class="ws-indicator disconnected" id="ws-status">● WS</div>
+    <button class="logout-btn" id="logout-btn" style="display:none" onclick="doLogout()">退出</button>
   </div>
 </header>
 
@@ -427,11 +541,35 @@
     <div class="service-list" id="svc-list"></div>
   </aside>
 
-  <!-- Main panel -->
-  <main class="main" id="main-panel">
-    <div class="empty-state">
-      <div class="empty-icon">⬡</div>
-      <div class="empty-text">选择一个服务或点击「添加」创建新服务</div>
+  <!-- Main area -->
+  <main class="main">
+    <!-- Services page -->
+    <div id="services-page">
+      <div class="empty-state" id="main-panel">
+        <div class="empty-icon">⬡</div>
+        <div class="empty-text">选择一个服务或点击「添加」创建新服务</div>
+      </div>
+    </div>
+
+    <!-- Terminal page -->
+    <div id="terminal-page">
+      <div class="term-toolbar">
+        <span style="font-size:13px;font-weight:600;color:var(--accent)">⌨ Terminal</span>
+        <div class="term-status disconnected" id="term-status">● 未连接</div>
+        <button class="term-btn" onclick="termConnect()">连接</button>
+        <button class="term-btn danger" onclick="termDisconnect()">断开</button>
+        <button class="term-btn" onclick="termClear()">清屏</button>
+        <span style="margin-left:auto;font-size:10px;color:var(--muted)">在容器内执行 Shell 命令</span>
+      </div>
+      <div class="term-wrap">
+        <div id="term-output"><span style="color:var(--muted)">点击「连接」开始会话...\n</span></div>
+        <div class="term-input-row">
+          <span class="term-prompt">$</span>
+          <input id="term-input" placeholder="输入命令..." autocomplete="off" spellcheck="false"
+                 onkeydown="termKeyDown(event)" disabled>
+          <button class="term-send-btn" onclick="termSend()">↵</button>
+        </div>
+      </div>
     </div>
   </main>
 </div>
@@ -494,18 +632,87 @@
 </div>
 
 <script>
-// ── State ──────────────────────────────────────────────────────────────────
-let services = {}; // name → state
+// ── Auth ────────────────────────────────────────────────────────────────────
+let authToken = null;
+
+async function checkAuth() {
+  const r = await fetch('/api/auth/check');
+  const j = await r.json();
+  if (!j.required || j.authenticated) {
+    authToken = 'ok';
+    document.getElementById('login-overlay').classList.add('hidden');
+    if (j.required) {
+      document.getElementById('logout-btn').style.display = '';
+    }
+    boot();
+  } else {
+    document.getElementById('login-overlay').classList.remove('hidden');
+    setTimeout(() => document.getElementById('login-pw').focus(), 100);
+    document.getElementById('login-pw').addEventListener('keydown', e => {
+      if (e.key === 'Enter') doLogin();
+    });
+  }
+}
+
+async function doLogin() {
+  const pw = document.getElementById('login-pw').value;
+  const errEl = document.getElementById('login-err');
+  errEl.textContent = '';
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({password: pw})
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      errEl.textContent = '密码错误，请重试';
+      document.getElementById('login-pw').value = '';
+      document.getElementById('login-pw').focus();
+      return;
+    }
+    authToken = j.token;
+    document.getElementById('login-overlay').classList.add('hidden');
+    document.getElementById('logout-btn').style.display = '';
+    boot();
+  } catch(e) {
+    errEl.textContent = '连接失败: ' + e.message;
+  }
+}
+
+async function doLogout() {
+  await fetch('/api/auth/logout', {method: 'POST'});
+  authToken = null;
+  location.reload();
+}
+
+// ── Page navigation ─────────────────────────────────────────────────────────
+let currentPage = 'services';
+
+function showPage(page) {
+  currentPage = page;
+  document.getElementById('services-page').classList.toggle('hidden', page !== 'services');
+  document.getElementById('terminal-page').classList.toggle('active', page === 'terminal');
+  document.getElementById('nav-services').classList.toggle('active', page === 'services');
+  document.getElementById('nav-terminal').classList.toggle('active', page === 'terminal');
+  if (page === 'terminal' && !termWs) {
+    setTimeout(termConnect, 300);
+  }
+}
+
+// ── State ────────────────────────────────────────────────────────────────────
+let services = {};
 let activeService = null;
 let activeTab = 'info';
 let editingName = null;
 let ws = null;
 let logAutoScroll = true;
 
-// ── WebSocket ──────────────────────────────────────────────────────────────
+// ── WebSocket ─────────────────────────────────────────────────────────────────
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}/api/ws`);
+  const token = authToken || '';
+  ws = new WebSocket(`${proto}://${location.host}/api/ws?token=${token}`);
 
   ws.onopen = () => {
     document.getElementById('ws-status').className = 'ws-indicator connected';
@@ -546,6 +753,7 @@ function connectWS() {
 
 async function fetchAll() {
   const r = await fetch('/api/services');
+  if (r.status === 401) { location.reload(); return; }
   const list = await r.json();
   services = {};
   list.forEach(s => { services[s.config.name] = s; });
@@ -569,7 +777,7 @@ async function fetchService(name) {
   updateStats();
 }
 
-// ── Render ─────────────────────────────────────────────────────────────────
+// ── Render ────────────────────────────────────────────────────────────────────
 function statusClass(s) {
   return { running:'running', stopped:'stopped', starting:'starting',
            stopping:'stopping', failed:'failed' }[s] || 'stopped';
@@ -605,6 +813,7 @@ function selectService(name) {
   activeTab = 'info';
   renderSidebar();
   renderMain();
+  if (currentPage !== 'services') showPage('services');
 }
 
 function renderMain() {
@@ -614,15 +823,17 @@ function renderMain() {
       <div class="empty-icon">⬡</div>
       <div class="empty-text">选择一个服务或点击「添加」创建新服务</div>
     </div>`;
+    panel.style = '';
     return;
   }
-  panel.innerHTML = `<div class="detail" id="detail-root">
+  panel.style = 'display:flex;flex-direction:column;height:100%;overflow:hidden;';
+  panel.innerHTML = `<div class="detail" id="detail-root" style="height:100%">
     <div class="detail-header" id="detail-header-root"></div>
     <div class="tabs">
       <div class="tab ${activeTab==='info'?'active':''}" onclick="switchTab('info')">信息</div>
       <div class="tab ${activeTab==='logs'?'active':''}" onclick="switchTab('logs')">日志</div>
     </div>
-    <div class="tab-content" id="tab-body"></div>
+    <div class="tab-content" id="tab-body" style="flex:1;overflow:auto;padding:16px 24px;"></div>
   </div>`;
   renderDetailHeader();
   renderTabBody();
@@ -679,42 +890,15 @@ function renderTabBody() {
       `<tr><td><code>${esc(k)}</code></td><td><code>${esc(v)}</code></td></tr>`).join('');
     body.innerHTML = `
       <div class="info-grid">
-        <div class="info-card">
-          <div class="info-label">命令</div>
-          <div class="info-value mono">${esc(s.config.command)}</div>
-        </div>
-        <div class="info-card">
-          <div class="info-label">参数</div>
-          <div class="info-value mono">${esc((s.config.args||[]).join(' ') || '—')}</div>
-        </div>
-        <div class="info-card">
-          <div class="info-label">状态</div>
-          <div class="info-value"><span class="svc-badge badge-${statusClass(s.status)}">${s.status}</span></div>
-        </div>
-        <div class="info-card">
-          <div class="info-label">PID</div>
-          <div class="info-value">${s.pid || '—'}</div>
-        </div>
-        <div class="info-card">
-          <div class="info-label">启动时间</div>
-          <div class="info-value">${s.started_at ? fmtTime(s.started_at) : '—'}</div>
-        </div>
-        <div class="info-card">
-          <div class="info-label">重启次数</div>
-          <div class="info-value">${s.restarts} / ${s.config.max_restarts || 10}</div>
-        </div>
-        <div class="info-card">
-          <div class="info-label">工作目录</div>
-          <div class="info-value mono">${esc(s.config.workdir || '—')}</div>
-        </div>
-        <div class="info-card">
-          <div class="info-label">自动重启</div>
-          <div class="info-value">${s.config.auto_restart ? '✓ 启用' : '✗ 禁用'}</div>
-        </div>
-        <div class="info-card">
-          <div class="info-label">开机自启</div>
-          <div class="info-value">${s.config.auto_start ? '✓ 启用' : '✗ 禁用'}</div>
-        </div>
+        <div class="info-card"><div class="info-label">命令</div><div class="info-value mono">${esc(s.config.command)}</div></div>
+        <div class="info-card"><div class="info-label">参数</div><div class="info-value mono">${esc((s.config.args||[]).join(' ') || '—')}</div></div>
+        <div class="info-card"><div class="info-label">状态</div><div class="info-value"><span class="svc-badge badge-${statusClass(s.status)}">${s.status}</span></div></div>
+        <div class="info-card"><div class="info-label">PID</div><div class="info-value">${s.pid || '—'}</div></div>
+        <div class="info-card"><div class="info-label">启动时间</div><div class="info-value">${s.started_at ? fmtTime(s.started_at) : '—'}</div></div>
+        <div class="info-card"><div class="info-label">重启次数</div><div class="info-value">${s.restarts} / ${s.config.max_restarts || 10}</div></div>
+        <div class="info-card"><div class="info-label">工作目录</div><div class="info-value mono">${esc(s.config.workdir || '—')}</div></div>
+        <div class="info-card"><div class="info-label">自动重启</div><div class="info-value">${s.config.auto_restart ? '✓ 启用' : '✗ 禁用'}</div></div>
+        <div class="info-card"><div class="info-label">开机自启</div><div class="info-value">${s.config.auto_start ? '✓ 启用' : '✗ 禁用'}</div></div>
       </div>
       ${envRows ? `<div class="info-card" style="margin-bottom:16px">
         <div class="info-label" style="margin-bottom:12px">环境变量</div>
@@ -724,9 +908,9 @@ function renderTabBody() {
         </table>
       </div>` : ''}`;
   } else {
-    body.style.padding = '12px';
     const logs = s.logs || [];
-    body.innerHTML = `<div class="log-container" id="log-box">
+    body.style.padding = '12px';
+    body.innerHTML = `<div class="log-container" id="log-box" style="height:calc(100% - 0px);">
       ${logs.map(l => logLineHTML(l)).join('')}
       ${logs.length===0 ? '<span style="color:var(--muted)">暂无日志...</span>' : ''}
     </div>`;
@@ -756,20 +940,17 @@ function scrollLogsToBottom() {
   if (box) box.scrollTop = box.scrollHeight;
 }
 
-// ── Service actions ────────────────────────────────────────────────────────
+// ── Service actions ───────────────────────────────────────────────────────────
 async function svcToggleAutoStart() {
   const name = activeService;
   if (!name) return;
   try {
-    const r = await fetch(`/api/services/${name}/autostart`, { method: "POST" });
+    const r = await fetch(`/api/services/${name}/autostart`, { method: 'POST' });
     const j = await r.json();
-    if (!r.ok) { toast(j.error || "操作失败", "error"); return; }
-    const enabled = !!j.auto_start;
-    toast(enabled ? "已设置自启" : "已禁止自启", "success");
-    await refreshService(name);
-  } catch (e) {
-    toast(e.message || "请求失败", "error");
-  }
+    if (!r.ok) { toast(j.error || '操作失败', 'error'); return; }
+    toast(j.auto_start ? '已设置自启' : '已禁止自启', 'success');
+    await fetchService(name);
+  } catch(e) { toast(e.message || '请求失败', 'error'); }
 }
 
 async function svcAction(action) {
@@ -792,7 +973,7 @@ async function deleteService() {
   await fetchAll();
 }
 
-// ── Modal ──────────────────────────────────────────────────────────────────
+// ── Modal ─────────────────────────────────────────────────────────────────────
 function openAddModal() {
   editingName = null;
   document.getElementById('modal-title').textContent = '添加服务';
@@ -829,9 +1010,7 @@ function openEditModal() {
   document.getElementById('modal-bg').classList.add('open');
 }
 
-function closeModal() {
-  document.getElementById('modal-bg').classList.remove('open');
-}
+function closeModal() { document.getElementById('modal-bg').classList.remove('open'); }
 
 function addEnvRow(k='', v='') {
   const row = document.createElement('div');
@@ -881,7 +1060,122 @@ async function saveService() {
   } catch(e) { toast(e.message, 'error'); }
 }
 
-// ── Toast ──────────────────────────────────────────────────────────────────
+// ── Terminal ──────────────────────────────────────────────────────────────────
+let termWs = null;
+let termHistory = [];
+let termHistoryIdx = -1;
+
+function termConnect() {
+  if (termWs && termWs.readyState === WebSocket.OPEN) return;
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const token = authToken || '';
+  termWs = new WebSocket(`${proto}://${location.host}/api/terminal?token=${token}`);
+
+  termWs.onopen = () => {
+    document.getElementById('term-status').className = 'term-status connected';
+    document.getElementById('term-status').textContent = '● 已连接';
+    document.getElementById('term-input').disabled = false;
+    document.getElementById('term-input').focus();
+    termAppend('已连接到容器 Shell\n', 'info');
+  };
+
+  termWs.onclose = () => {
+    document.getElementById('term-status').className = 'term-status disconnected';
+    document.getElementById('term-status').textContent = '● 已断开';
+    document.getElementById('term-input').disabled = true;
+    termAppend('\n[会话已关闭]\n', 'sys');
+    termWs = null;
+  };
+
+  termWs.onerror = () => {
+    termAppend('[WebSocket 错误]\n', 'err');
+  };
+
+  termWs.onmessage = e => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'output') {
+        termAppend(msg.data, '');
+      } else if (msg.type === 'error') {
+        termAppend(msg.data + '\n', 'err');
+      } else if (msg.type === 'exit') {
+        termAppend('\n[' + msg.data + ']\n', 'sys');
+      }
+    } catch(_) {}
+  };
+}
+
+function termDisconnect() {
+  if (termWs) {
+    termWs.close();
+    termWs = null;
+  }
+}
+
+function termClear() {
+  document.getElementById('term-output').innerHTML = '';
+}
+
+function termAppend(text, cls) {
+  const out = document.getElementById('term-output');
+  if (!out) return;
+  const span = document.createElement('span');
+  if (cls) span.className = 't-' + cls;
+  span.textContent = text;
+  out.appendChild(span);
+  out.scrollTop = out.scrollHeight;
+}
+
+function termSend() {
+  const input = document.getElementById('term-input');
+  const cmd = input.value;
+  if (!termWs || termWs.readyState !== WebSocket.OPEN) {
+    toast('终端未连接', 'error');
+    return;
+  }
+  // Echo command
+  termAppend('$ ' + cmd + '\n', 'info');
+  // Save history
+  if (cmd.trim()) {
+    termHistory.unshift(cmd);
+    if (termHistory.length > 100) termHistory.pop();
+  }
+  termHistoryIdx = -1;
+  // Send to shell
+  termWs.send(JSON.stringify({ type: 'input', data: cmd + '\n' }));
+  input.value = '';
+}
+
+function termKeyDown(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    termSend();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (termHistoryIdx < termHistory.length - 1) {
+      termHistoryIdx++;
+      document.getElementById('term-input').value = termHistory[termHistoryIdx];
+    }
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (termHistoryIdx > 0) {
+      termHistoryIdx--;
+      document.getElementById('term-input').value = termHistory[termHistoryIdx];
+    } else {
+      termHistoryIdx = -1;
+      document.getElementById('term-input').value = '';
+    }
+  } else if (e.key === 'c' && e.ctrlKey) {
+    if (termWs && termWs.readyState === WebSocket.OPEN) {
+      termWs.send(JSON.stringify({ type: 'input', data: '\x03' }));
+    }
+  } else if (e.key === 'l' && e.ctrlKey) {
+    e.preventDefault();
+    termClear();
+  }
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
 function toast(msg, type='info') {
   const c = document.getElementById('toasts');
   const t = document.createElement('div');
@@ -891,7 +1185,7 @@ function toast(msg, type='info') {
   setTimeout(() => t.remove(), 3000);
 }
 
-// ── Utils ──────────────────────────────────────────────────────────────────
+// ── Utils ─────────────────────────────────────────────────────────────────────
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -899,13 +1193,16 @@ function fmtTime(t) {
   return new Date(t).toLocaleTimeString('zh-CN', {hour12:false});
 }
 
-// close modal on bg click
 document.getElementById('modal-bg').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeModal();
 });
 
-// ── Boot ───────────────────────────────────────────────────────────────────
-fetchAll().then(() => connectWS());
+// ── Boot ──────────────────────────────────────────────────────────────────────
+function boot() {
+  fetchAll().then(() => connectWS());
+}
+
+checkAuth();
 </script>
 </body>
 </html>

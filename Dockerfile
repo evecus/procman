@@ -2,31 +2,31 @@ FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS builder
 
 WORKDIR /src
 
-RUN apk add --no-cache ca-certificates tzdata
-
+# vendor 目录已包含所有依赖，无需联网
 COPY go.mod go.sum ./
-RUN go mod download
-
+COPY vendor ./vendor
 COPY . .
 
 ARG TARGETOS
 ARG TARGETARCH
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -o /out/procman ./cmd/procman
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
+    go build -mod=vendor -trimpath -ldflags="-s -w" \
+    -o /out/procman ./cmd/procman
 
+# ── Runtime ──────────────────────────────────────────────────────────────────
 FROM alpine:3.18
 
-RUN apk add --no-cache ca-certificates tzdata
+# ca-certificates: HTTPS请求; tzdata: 时区; bash/coreutils: Terminal功能更完整
+RUN apk add --no-cache ca-certificates tzdata bash coreutils
 
 WORKDIR /app
 
 COPY --from=builder /out/procman /app/procman
-COPY web/static /app/web/static
+RUN chmod +x /app/procman && mkdir -p /data
 
-RUN chmod +x /app/procman
-RUN mkdir -p /app/data
-ENV PROCMAN_DATA=/app/data
+ENV PROCMAN_DATA=/data
 ENV PROCMAN_ADDR=:8080
-ENV WEB_PASSWORD=1234
+ENV WEB_PASSWORD=
 
 EXPOSE 8080
 
