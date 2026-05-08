@@ -1,6 +1,9 @@
 name: Build and Push Multi-Arch Docker Image
 
 on:
+  push:
+    branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 jobs:
@@ -10,44 +13,39 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.22'
-          cache: true
-
-      - run: go mod tidy
-
-      # --- 第一步：交叉编译（前后端已通过 go:embed 合一） ---
-      - name: Build Go binaries for multiple archs
-        run: |
-          mkdir -p build
-          # 编译时 Go 会自动将 server.go 关联的 static 资源打包
-          GOOS=linux GOARCH=amd64 go build -o build/procman-amd64 ./cmd/procman
-          GOOS=linux GOARCH=arm64 go build -o build/procman-arm64 ./cmd/procman
-
-      # --- 第二步：设置多架构支持工具 ---
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # --- 第三步：登录 Docker Hub ---
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # --- 第四步：构建多架构镜像并推送 ---
-      - name: Build and push Docker image
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/procman
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/procman:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/procman:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # vendor 目录已包含依赖，无需缓存 Go module
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
